@@ -103,6 +103,7 @@ Runtime 生成 AgentEvent，Event Emitter 负责发布，Transport Adapter 负�
 interface ModelRequest {
   messages: Message[];
   tools: ToolDefinition[];
+  model: string;
   sessionId: SessionId;
   runId: RunId;
   turnId: TurnId;
@@ -200,6 +201,20 @@ type AgentStatus =
   | "failed"
   | "cancelled";
 
+interface AgentDefinition {
+  id: string;
+  name: string;
+  instructions: string;
+  model: string;
+  tools: string[];
+  skills?: string[];
+  limits: {
+    maxIterations: number;
+    timeoutMs: number;
+  };
+  metadata?: Record<string, string>;
+}
+
 interface AgentState {
   sessionId: SessionId;
   runId: RunId;
@@ -228,24 +243,56 @@ interface AgentResult {
 }
 
 interface Agent {
-  run(input: string, context: AgentContext): Promise<AgentResult>;
+  run(
+    definition: AgentDefinition,
+    input: string,
+    context: AgentContext,
+  ): Promise<AgentResult>;
   cancel(runId: RunId): void;
+}
+
+interface ContextBuilder {
+  build(
+    state: AgentState,
+    definition: AgentDefinition,
+    context: AgentContext,
+  ): Message[];
 }
 ```
 
-Runtime Loop 固定为：`Context -> LLMProvider -> LLMResponse -> DecisionNormalizer -> AgentDecision -> Tool Registry/Executor or final -> State/Event/Session`。Runtime 通过注入端口编排 Permission、Cancellation、Retry、Session 和 Hooks；这些横切能力不散落到 Provider 或 Tool 中。
+Runtime Loop 固定为：`AgentDefinition + input -> Context -> LLMProvider -> LLMResponse -> DecisionNormalizer -> AgentDecision -> Tool Registry/Executor or final -> State/Event/Session`。Runtime 通过注入端口编排 Permission、Cancellation、Retry、Session 和 Hooks；这些横切能力不散落到 Provider 或 Tool 中。
 
 目标源码边界：
 
 ```text
 agent-core/src/
-├── agent/        # agent.ts / agent-loop.ts / agent-state.ts
+├── agent/        # agent.ts / agent-definition.ts / agent-loop.ts / agent-state.ts
 ├── decision/     # decision.ts / normalizer.ts
 ├── context/      # context-builder.ts / message-manager.ts
 ├── events/       # agent-event.ts / event-emitter.ts
 ├── permissions/  # permission-policy.ts / permission-manager.ts
 └── index.ts
 ```
+
+具体 Agent 不新增 Runtime 抽象，直接在应用层声明 Definition：
+
+```typescript
+const codeAnalysisAgent: AgentDefinition = {
+  id: "code-analysis",
+  name: "Code Analysis Agent",
+  instructions:
+    "分析当前 workspace 的代码结构，并基于工具结果生成可引用的分析报告。",
+  model: "configured-model",
+  tools: ["list-files", "read-file"],
+  skills: ["file-analysis"],
+  limits: {
+    maxIterations: 20,
+    timeoutMs: 60_000,
+  },
+};
+```
+
+该 Definition 计划位于 `apps/server/src/agents/code-analysis-agent.ts`。它只声明能力和约束，不直接调用 LLM、文件系统或 Tool；所有执行仍由 Agent Runtime 负责。
 
 ## 8. Orchestration Ports
 
@@ -308,6 +355,7 @@ apps/server/src/
 ├── routes/
 ├── controllers/
 ├── services/
+├── agents/       # concrete AgentDefinition files
 └── index.ts
 ```
 

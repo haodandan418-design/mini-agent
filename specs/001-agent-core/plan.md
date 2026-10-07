@@ -8,7 +8,7 @@
 
 - protocol：Message、ToolCall、ToolResult、AgentEvent、Error、branded IDs；
 - llm：LLMProvider、LLMResponse Port；
-- agent-core：AgentRunner、AgentState、ContextBuilder、`decision/decision.ts`、`decision/normalizer.ts`、状态转换、EventEmitter、orchestration ports；
+- agent-core：AgentRunner、AgentDefinition、AgentState、ContextBuilder、`decision/decision.ts`、`decision/normalizer.ts`、状态转换、EventEmitter、orchestration ports；
 - 测试目录中的确定性 Provider/Normalizer test doubles。
 
 ## 修改模块
@@ -19,7 +19,7 @@ Phase 1 前无业务模块。只准备 Phase 0 约定的 monorepo 包边界和�
 
 ```text
 input
-  -> user Message
+  -> AgentDefinition + user Message
   -> ContextBuilder
   -> LLMProvider
   -> LLMResponse

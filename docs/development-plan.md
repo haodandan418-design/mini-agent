@@ -76,6 +76,7 @@ Phase 1 是第一次允许写业务代码的阶段，但只处理 Core Loop：
 - `packages/agent-core/src/decision/decision.ts` 的 AgentDecision 领域类型；
 - `packages/llm` 的 `LLMProvider`、`LLMResponse` Port；
 - `packages/agent-core/src/decision` 的 `Decision` 类型和 `DecisionNormalizer`；
+- `packages/agent-core/src/agent/agent-definition.ts` 的 AgentDefinition；
 - `packages/agent-core` 的 Agent、AgentState、Context、Loop、Cancellation、最大迭代和错误收敛；
 - Runtime 对 Permission、Retry、Session、Hooks 的最小编排端口，不实现其生产级实现；
 - Core 级事件发布测试，不实现 SSE 或 React UI。
@@ -89,7 +90,40 @@ Phase 1 是第一次允许写业务代码的阶段，但只处理 Core Loop：
 
 Phase 1 的输入是测试 Provider 返回的 `LLMResponse`，输出是经过 Normalizer 的 `AgentDecision` 和确定的 `AgentResult`。
 
-## 6. 各 Phase 交付规则
+## 6. Code Analysis Agent 垂直切片
+
+这是本项目的第一条参考 Agent 应用链路，用于证明 Runtime 不只是通用编排器：
+
+| 阶段     | 交付                                                                                                        | 明确边界                           |
+| -------- | ----------------------------------------------------------------------------------------------------------- | ---------------------------------- |
+| Phase 1  | 定义 `AgentDefinition`、Runtime `run(definition, input, context)` 入口                                      | 不创建具体 Agent 应用，不执行 Tool |
+| Phase 2  | 在 `apps/server/src/agents/code-analysis-agent.ts` 声明 Code Analysis Agent，接入 `list-files`、`read-file` | 只读分析，不做搜索、写入或命令执行 |
+| Phase 3  | 通过 Server API/SSE 和 Web UI 展示该 Agent 的完整事件链                                                     | Transport 不复制 Runtime 逻辑      |
+| 后续增强 | 增加 `search-files`，完成 React 页面统计、`useEffect` 分析和报告生成                                        | 必须先更新 Tool Spec 和验收标准    |
+
+参考任务输入：
+
+```text
+分析当前 workspace，列出代码文件，读取相关文件，并说明项目结构。
+```
+
+最终验收链路：
+
+```text
+用户输入
+  -> Code Analysis Agent Definition
+  -> Agent Runtime
+  -> list-files / read-file
+  -> Tool Results 回填 Context
+  -> Agent Decision
+  -> AgentEvent
+  -> SSE / Web UI
+  -> Final Analysis
+```
+
+该垂直切片不新增 `packages/agents`，具体 Agent 属于 `apps/server/src/agents`，通用能力仍属于 `packages/agent-core`。
+
+## 7. 各 Phase 交付规则
 
 每个阶段完成前必须：
 
@@ -100,14 +134,14 @@ Phase 1 的输入是测试 Provider 返回的 `LLMResponse`，输出是经过 No
 5. 更新受影响的文档、错误码、事件或任务状态；
 6. 发现 Spec/架构/依赖冲突时暂停，报告问题、原因、影响和建议。
 
-## 7. 验收策略
+## 8. 验收策略
 
 - Unit：包内纯逻辑和端口契约；
 - Integration：跨包组合和真实临时 workspace；
 - Acceptance：从用户输入到最终事件/结果的可观察链路；
 - 生产能力：额外使用故障注入、重启、重复请求和安全拒绝测试。
 
-## 8. 主要风险控制
+## 9. 主要风险控制
 
 - 目标架构过大：每个包只有在所属 Phase 才能实现；
 - Provider 协议泄漏：所有模型响应必须经过 Normalizer；

@@ -1,7 +1,7 @@
 # 001 Agent Core Tasks
 
 - [ ] **CORE-001 定义 protocol 基础类型与 ID**
-  - 输入：技术设计中的 Message、ToolCall、ToolResult、AgentDecision、AgentEvent 和 ID 约定。
+  - 输入：技术设计中的 Message、ToolCall、ToolResult、AgentEvent 和 ID 约定。
   - 输出：可序列化的公共类型、错误模型和校验边界。
   - 验收：缺失 session/run/turn/tool/event ID 或非法 Decision 能被拒绝。
 
@@ -19,6 +19,11 @@
   - 输入：AgentState、AgentContext 和 user input。
   - 输出：按顺序组装且不修改原 State 的 Message 数组。
   - 验收：system/user/assistant/tool 顺序稳定，所有消息含 session/run/turn/message ID。
+
+- [ ] **CORE-004A 定义 AgentDefinition**
+  - 输入：技术设计中的 AgentDefinition 字段和 Runtime 入口。
+  - 输出：`agent/agent-definition.ts` 类型及定义校验。
+  - 验收：缺少 id/instructions/model/tools/limits 或超出预算的 Definition 被拒绝。
 
 - [ ] **CORE-005 实现 Agent 状态转换**
   - 输入：当前状态和 Core 领域事件。
@@ -49,3 +54,8 @@
   - 输入：代表性用户问题和预设模型响应。
   - 输出：验收记录。
   - 验收：从 run.started 到 completed/failed/cancelled 的完整链路可复现，且没有真实 Tool 执行。
+
+- [ ] **CORE-011 验证 Definition 驱动的 Runtime 入口**
+  - 输入：最小 Code Analysis Agent Definition、用户输入和测试 Provider。
+  - 输出：隔离的 AgentResult 和 State。
+  - 验收：Runtime 使用 Definition 的 instructions/tools/limits，且不要求创建第二套 Agent Loop。

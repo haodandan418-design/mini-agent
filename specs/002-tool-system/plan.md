@@ -11,6 +11,7 @@
 - `executor/tool-executor.ts` 和输入/结果/路径安全策略；
 - `builtin/list-files.ts`、`builtin/read-file.ts`；
 - Tool Result 到 protocol Message 的适配器。
+- `apps/server/src/agents/code-analysis-agent.ts` 的最小 AgentDefinition 组合。
 
 ## 修改模块
 
@@ -29,6 +30,8 @@ AgentDecision.tool_call
   -> ToolResult
   -> tool Message + toolHistory
   -> next LLM request
+
+Code Analysis Agent 只提供 Definition：`tools: ["list-files", "read-file"]`，运行仍由 agent-core 负责。
 ```
 
 ## 状态变化

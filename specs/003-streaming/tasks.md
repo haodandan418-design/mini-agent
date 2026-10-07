@@ -34,3 +34,8 @@
   - 输入：事件序列、SSE 客户端和多工具 Run。
   - 输出：协议、重连和 UI 状态测试。
   - 验收：覆盖断线、缺口、重复、错误和最终状态。
+
+- [ ] **STREAM-008 完成 Code Analysis Agent 垂直切片**
+  - 输入：Code Analysis Agent Definition、Server API、SSE 和 Web Run 视图。
+  - 输出：一次可观察的 list/read 只读分析流程。
+  - 验收：用户输入经 Agent Definition 进入 Runtime，前端展示 Tool Call/Result、事件状态和 Final Analysis。

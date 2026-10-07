@@ -14,6 +14,7 @@ Agent 任务包含多轮思考和工具调用，用户需要看到可解释进�
 - eventId、sequence、runId、Last-Event-ID 重放语义；
 - SSE headers、keepalive、断开处理和错误收敛；
 - 前端文本增量、工具卡片、状态和最终答案渲染；
+- Code Analysis Agent 的 Server/SSE/Web 最小垂直切片；
 - 事件协议和端到端测试。
 
 ## Non-goals
@@ -46,6 +47,7 @@ Agent 任务包含多轮思考和工具调用，用户需要看到可解释进�
 - 重复事件不会重复文字或工具卡片；
 - 模拟断线后能续接，模拟 sequence 缺口后不会静默错误；
 - Provider/tool 失败能通过 SSE 被消费并显示结束状态。
+- Code Analysis Agent 能通过 Server/SSE/Web 完成一次 list/read 只读任务并展示 Final Analysis。
 
 ## Edge Cases
 

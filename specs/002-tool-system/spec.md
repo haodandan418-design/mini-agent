@@ -15,6 +15,7 @@
 - Executor 的查找、校验、超时、取消、异常和结果归一化；
 - workspace 路径边界、结果大小和二进制处理；
 - `list-files`、`read-file` 与 Agent Loop 的 Tool Result 回填；
+- Code Analysis Agent 使用两个只读工具完成最小参考任务；
 - Tool 行为、状态、错误和安全边界测试。
 
 ## Non-goals
@@ -33,6 +34,7 @@
 5. 成功和失败 ToolResult 都能以 tool Message 回填 Context，供下一次 Decision 使用。
 6. 同一 Tool Call 不得被 Executor 隐式执行两次。
 7. 工具执行入口必须保留后续 Permission/Sandbox 接入点，但 Phase 2 不实现写/执行能力。
+8. `apps/server/src/agents/code-analysis-agent.ts` 只能声明 Definition 和依赖工具，不复制 Agent Loop。
 
 ## Technical Requirements
 
@@ -49,6 +51,7 @@
 - 工具异常不会让进程崩溃，能产生稳定错误码和 tool result；
 - 重复注册、未知工具、schema 错误、取消和重复执行都有确定行为；
 - Phase 2 Gate 不包含文件搜索、写入或命令执行。
+- Code Analysis Agent 能完成“列出 workspace 文件并读取指定文件”的最小只读任务。
 
 ## Edge Cases
 

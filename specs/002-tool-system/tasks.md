@@ -45,6 +45,11 @@
   - 输出：Unit/Integration/Acceptance 测试。
   - 验收：行为、状态、错误、边界和安全拒绝均被覆盖。
 
+- [ ] **TOOL-010 声明 Code Analysis Agent 最小 Definition**
+  - 输入：AgentDefinition、`list-files`、`read-file` 和 workspace 约束。
+  - 输出：`apps/server/src/agents/code-analysis-agent.ts` 的应用层 Definition。
+  - 验收：Definition 不实现 Loop/Tool 执行，能驱动“列出文件并读取指定文件”的只读任务。
+
 ## Phase 2 之后的候选 Task
 
 `search-files` 是后续 Tool System 增强；`write-file`、`edit-file`、`bash` 必须等待 Permission/Sandbox Spec，不在当前 Task 列表执行。

@@ -16,6 +16,7 @@
 
 - Agent Loop 在状态、文本、工具开始/结果、结束处发布 canonical 事件；
 - API 增加 run 创建和 event stream 路由；
+- Server 注入 `apps/server/src/agents/code-analysis-agent.ts`；
 - 前端 Chat/Run 页面增加事件视图。
 
 ## 数据流

@@ -22,11 +22,12 @@ mini-agent/
 │           ├── routes/
 │           ├── controllers/
 │           ├── services/
+│           ├── agents/              # 具体 Agent Definition / Application
 │           └── index.ts
 ├── packages/
 │   ├── agent-core/                  # Agent Runtime 核心
 │   │   └── src/
-│   │       ├── agent/               # agent.ts / agent-loop.ts / agent-state.ts
+│   │       ├── agent/               # agent.ts / agent-definition.ts / agent-loop.ts / agent-state.ts
 │   │       ├── decision/            # decision.ts / normalizer.ts
 │   │       ├── context/             # context-builder.ts / message-manager.ts
 │   │       ├── events/              # agent-event.ts / event-emitter.ts
@@ -147,7 +148,7 @@ flowchart TD
 
 ### `apps/server`
 
-Node API 和 composition root，负责 HTTP/SSE 路由、请求校验、依赖装配和 workspace 配置。它不实现 Agent Loop。
+Node API 和 composition root，负责 HTTP/SSE 路由、请求校验、依赖装配、workspace 配置和具体 Agent Definition。`src/agents/` 可以定义 `Code Analysis Agent` 等应用 Agent，但不实现 Agent Loop。
 
 ### `apps/web`
 
@@ -160,7 +161,7 @@ React UI，提交用户输入，消费 AgentEvent 并展示文本、Tool Call、
 ## 5. 目标包内结构规则
 
 - `apps/web/src/features/` 按用户能力组织 UI，不把 Agent Loop 放入前端；
-- `apps/server/src/routes` 负责路由，`controllers` 负责请求/响应，`services` 负责组合调用，不复制 Runtime；
+- `apps/server/src/routes` 负责路由，`controllers` 负责请求/响应，`services` 负责组合调用，`agents/` 负责具体 Agent Definition，不复制 Runtime；
 - `agent-core` 的 `agent/decision/context/events/permissions` 是 Runtime 内部边界，优先使用简单模块，不创建额外 Manager/Factory 层；
 - `llm` 可以拥有 Provider Adapter，但 `normalizer.ts` 归属 `agent-core/decision`；
 - `protocol` 是唯一 canonical Event/Message/Tool 协议来源，SSE/WebSocket/CLI 不得重新定义；
@@ -201,7 +202,25 @@ flowchart LR
 
 依赖含义是“使用端口/类型”，不是允许反向调用实现。`agent-core` 只依赖 `llm` 的 Provider/Normalizer 契约和 `tools` 的 Tool/Executor 契约，不依赖具体 SDK、数据库或 HTTP。`apps/server` 是组合根，负责注入具体实现，因此不会把基础设施耦合进 Core。
 
-## 7. Agent Loop 与 Decision 流程
+## 7. Agent Definition、Runtime 与具体 Agent
+
+Agent 项目必须区分三个概念：
+
+1. **AgentDefinition**：描述 Agent 的身份、指令、模型、工具、Skill 和预算；
+2. **Agent Runtime**：执行通用 Loop、Context、Decision、Tool、State 和 Event；
+3. **Concrete Agent**：在应用层组合一个可完成具体任务的 Definition。
+
+```text
+apps/server/src/agents/code-analysis-agent.ts
+  -> AgentDefinition
+  -> agent-core Agent Runtime
+  -> packages/tools Registry / Executor
+  -> AgentEvent / Session / Trace
+```
+
+`Code Analysis Agent` 是本项目的参考应用，不是第二套 Runtime。Phase 2 先使用 `list-files`、`read-file`，Phase 3 通过 Server/Web/SSE 暴露；`search-files` 增加后再完成完整的代码搜索分析报告。
+
+## 8. Agent Loop 与 Decision 流程
 
 ```mermaid
 sequenceDiagram
@@ -229,7 +248,7 @@ sequenceDiagram
 
 结束条件包括 final decision、不可恢复错误、取消和迭代/预算耗尽。Permission、Retry、Session 和 Hooks 在这些边界上由 Runtime 编排，但具体存储/策略由注入端口提供。
 
-## 8. AgentEvent 与传输
+## 9. AgentEvent 与传输
 
 `AgentEvent` 是 `packages/protocol` 的核心协议，由 Runtime 产生，经 Event Emitter 分发，再由 SSE、WebSocket 或 CLI Adapter 传输。至少包含：
 
@@ -247,7 +266,7 @@ run.cancelled
 
 每个重要事件带 `eventId`、`runId`、`turnId`、`sequence`。SSE 可以使用 `id: eventId` 和 `Last-Event-ID` 重放，但不得把 `run.started` 改名为 SSE 私有事件或改变 payload 语义。
 
-## 9. 安全与生命周期原则
+## 10. 安全与生命周期原则
 
 - 所有外部输入（LLM、HTTP、MCP、Skill、用户）默认不可信；
 - Workspace 是本地文件工具的硬边界，路径必须 canonicalize 后检查；

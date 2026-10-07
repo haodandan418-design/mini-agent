@@ -11,9 +11,9 @@ Agent 的核心不是一次 Chat 请求，而是一个可停止、可取消、�
 ## Scope
 
 - protocol 中的 Message、ToolCall、ToolResult、AgentEvent 基础类型和唯一 ID；
+- agent-core/agent 中的 Agent、AgentDefinition 和 AgentState；
 - agent-core/decision 中的 AgentDecision、DecisionNormalizer 和 DecisionValidator；
 - LLMProvider、LLMResponse Port；
-- `agent-core/decision` 中的 AgentDecision、DecisionNormalizer 和 DecisionValidator；
 - Agent、AgentState、ContextBuilder、Agent Loop；
 - Cancellation、最大迭代、非法 Decision 和 Provider 错误收敛；
 - Permission、Retry、Session、Hooks 的最小 orchestration port；
@@ -30,13 +30,15 @@ Agent 的核心不是一次 Chat 请求，而是一个可停止、可取消、�
 ## Functional Requirements
 
 1. 输入字符串形成带 session/run/turn/message ID 的 user Message。
-2. Provider 返回 `LLMResponse` 后，Runtime 必须调用 `agent-core/decision/normalizer.ts`，不能直接读取 provider-specific 字段。
-3. Normalizer 输出 final decision 时 Run 进入 `completed` 并返回最终 Message。
-4. Normalizer 输出 tool-call decision 时记录 assistant Message 和 ToolCall，但本阶段不执行真实 Tool。
-5. Provider 错误、非法 response、非法 decision 和达到最大迭代次数进入 `failed`，具有稳定错误码。
-6. AbortSignal 在 Provider 调用前或调用中触发时，Run 进入 `cancelled`。
-7. EventEmitter 能发布 run started、message delta/completed、error、run completed/cancelled 等 Core 事件。
-8. Agent Core 只通过端口编排 Permission、Retry、Session 和 Hooks，不依赖它们的具体实现。
+2. `AgentDefinition` 能声明 id、instructions、model、tools、skills 和 limits。
+3. Runtime 接收 `AgentDefinition`、用户输入和 Context，创建隔离的 Run。
+4. Provider 返回 `LLMResponse` 后，Runtime 必须调用 `agent-core/decision/normalizer.ts`，不能直接读取 provider-specific 字段。
+5. Normalizer 输出 final decision 时 Run 进入 `completed` 并返回最终 Message。
+6. Normalizer 输出 tool-call decision 时记录 assistant Message 和 ToolCall，但本阶段不执行真实 Tool。
+7. Provider 错误、非法 response、非法 decision 和达到最大迭代次数进入 `failed`，具有稳定错误码。
+8. AbortSignal 在 Provider 调用前或调用中触发时，Run 进入 `cancelled`。
+9. EventEmitter 能发布 run started、message delta/completed、error、run completed/cancelled 等 Core 事件。
+10. Agent Core 只通过端口编排 Permission、Retry、Session 和 Hooks，不依赖它们的具体实现。
 
 ## Technical Requirements
 
@@ -50,6 +52,7 @@ Agent 的核心不是一次 Chat 请求，而是一个可停止、可取消、�
 ## Acceptance Criteria
 
 - 给定 stop response，LLMResponse 经 Normalizer 后返回 completed 和最终文本；
+- 给定合法 AgentDefinition，Runtime 能按其 instructions、tools 和 limits 创建 Run；
 - 给定 tool-call response，能记录 AgentDecision 和状态，但没有 Tool 副作用；
 - Provider 抛错、Normalizer 拒绝非法响应、空 decision 和迭代超限均返回结构化 failed；
 - Abort 在调用前和调用中都能得到 cancelled；

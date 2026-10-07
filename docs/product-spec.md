@@ -31,7 +31,18 @@ Mini Agent Runtime 是一个以 TypeScript/Node.js 实现、面向代码仓库�
 4. 基于工具结果继续循环；
 5. 以流式事件展示过程并返回最终答案。
 
-### 4.2 后续场景
+### 4.2 参考 Agent：Code Analysis Agent
+
+项目必须最终提供一个具体的参考 Agent，而不只交付 Runtime：
+
+- Definition 位于 `apps/server/src/agents/code-analysis-agent.ts`；
+- Phase 2 使用 `list-files`、`read-file` 完成只读代码结构分析；
+- Phase 3 通过 SSE 和 React UI 展示 Tool Call、Tool Result 和 Final Analysis；
+- 后续增加 `search-files` 后，完成 React 页面统计、`useEffect` 使用分析和报告生成。
+
+该 Agent 复用 `packages/agent-core`，不创建第二套 Loop，也不新增 `packages/agents`。
+
+### 4.3 后续场景
 
 - 项目分析：统计 React 页面、依赖和目录结构；
 - 代码搜索：按文件名、文本和受限 glob 搜索；
