@@ -6,11 +6,11 @@ Agent 任务包含多轮思考和工具调用，用户需要看到可解释进�
 
 ## What
 
-实现 versioned Agent Event Protocol、Runtime Event Emitter、Node SSE endpoint 和 React 事件消费状态模型。
+实现 `packages/protocol` 中 versioned Agent Event Protocol 的传输适配、Runtime Event Emitter、Node SSE endpoint 和 React 事件消费状态模型。AgentEvent 不属于 SSE 私有协议。
 
 ## Scope
 
-- run/message/tool/state/error/end 事件；
+- `run.started`、`message.delta`、`message.completed`、`tool.started`、`tool.completed`、`permission.requested`、`error`、`run.completed`、`run.cancelled` 事件；
 - eventId、sequence、runId、Last-Event-ID 重放语义；
 - SSE headers、keepalive、断开处理和错误收敛；
 - 前端文本增量、工具卡片、状态和最终答案渲染；
@@ -25,11 +25,11 @@ Agent 任务包含多轮思考和工具调用，用户需要看到可解释进�
 
 ## Functional Requirements
 
-1. Runtime 发出的事件顺序单调，包含 `eventId` 和 `sequence`。
+1. Runtime 发出的 canonical AgentEvent 顺序单调，包含 `eventId`、`runId`、`turnId` 和 `sequence`。
 2. SSE 每个事件以 JSON data 传输，并设置 `id` 供客户端续接。
 3. 客户端能对重复事件幂等，对 sequence 缺口显示恢复/错误状态。
-4. 文本 delta 按 messageId 累积；工具调用和结果按 toolCallId 关联。
-5. Run 完成、失败、取消都有明确 run_end；连接关闭不改变 Run 事实状态。
+4. `message.delta` 按 messageId 累积；工具调用和结果按 toolCallId 关联。
+5. Run 完成、失败、取消都有明确 `run.completed`、`error` 或 `run.cancelled`；连接关闭不改变 Run 事实状态。
 6. 断线重连能从最后游标继续接收可用事件。
 
 ## Technical Requirements
@@ -42,7 +42,7 @@ Agent 任务包含多轮思考和工具调用，用户需要看到可解释进�
 
 ## Acceptance Criteria
 
-- 用户可以看到 Thinking、Tool Call、Tool Result、Analysis、Final Answer；
+- 用户可以看到 Thinking、Tool Call、Tool Result、Analysis、Final Answer；底层事件名称与 protocol 定义一致；
 - 重复事件不会重复文字或工具卡片；
 - 模拟断线后能续接，模拟 sequence 缺口后不会静默错误；
 - Provider/tool 失败能通过 SSE 被消费并显示结束状态。

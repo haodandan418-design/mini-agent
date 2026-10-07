@@ -2,26 +2,27 @@
 
 ## 架构修改
 
-增加独立 Event Protocol 和 Event Store/Buffer。Runtime 只发布领域事件，SSE Adapter 订阅并编码；React 只通过 reducer 把事件还原为展示状态。
+使用 `packages/protocol` 的 canonical AgentEvent，并在 `packages/agent-core/src/events` 增加 Event Emitter、Event Store/Buffer 和 Transport Adapter。Runtime 只发布领域事件，SSE Adapter 订阅并编码；React 只通过 reducer 把事件还原为展示状态。
 
 ## 新增模块
 
-- AgentEvent 类型、validator、sequence generator；
+- protocol AgentEvent 类型、validator、sequence generator；
+- agent-core `events/agent-event.ts` 与 `events/event-emitter.ts`；
 - Run event buffer 和订阅接口；
 - Node SSE endpoint；
 - Frontend event client、reducer 和渲染模型。
 
 ## 修改模块
 
-- Agent Loop 在状态、文本、工具开始/结果、结束处发布事件；
+- Agent Loop 在状态、文本、工具开始/结果、结束处发布 canonical 事件；
 - API 增加 run 创建和 event stream 路由；
 - 前端 Chat/Run 页面增加事件视图。
 
 ## 数据流
 
 ```text
-Runtime fact -> EventEmitter -> buffer -> SSE encoder -> browser
-browser event -> validator -> idempotent reducer -> UI state
+Runtime fact -> AgentEvent -> EventEmitter -> buffer -> SSE encoder -> browser
+browser event -> protocol validator -> idempotent reducer -> UI state
 ```
 
 ## 状态变化
@@ -30,4 +31,4 @@ browser event -> validator -> idempotent reducer -> UI state
 
 ## 设计理由
 
-把协议从 SSE 中抽出可以复用日志、测试和未来 WebSocket；序列号和游标将断线恢复从“重新请求”变成可验证的事件重放。
+把协议放在 protocol 并从 SSE 中抽出可以复用日志、测试和未来 WebSocket；序列号和游标将断线恢复从“重新请求”变成可验证的事件重放。

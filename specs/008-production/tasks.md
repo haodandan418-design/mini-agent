@@ -1,9 +1,9 @@
 # 008 Production Tasks
 
-- [ ] **PROD-001 定义 Session/Run Snapshot**
-  - 输入：AgentState、messages、toolHistory、event cursor。
+- [ ] **PROD-001 定义 Session/Run/Turn Snapshot**
+  - 输入：sessionId、runId、turnId、AgentState、messages、toolHistory、event cursor。
   - 输出：带 version/checksum 的 snapshot schema。
-  - 验收：保存和加载可验证一致性，版本冲突可识别。
+  - 验收：Session/Run/Turn 关系、保存/加载一致性和版本冲突可识别。
 
 - [ ] **PROD-002 实现 SessionStore/EventStore Port**
   - 输入：可替换存储接口。

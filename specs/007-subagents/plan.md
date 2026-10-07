@@ -2,7 +2,7 @@
 
 ## 架构修改
 
-增加 SubAgentRunner 和 Delegation Tool。父 Runtime 通过 Executor 发起子 Run；Child Runtime 使用独立 State/Context，但共享只读的基础能力和事件总线关联标识。
+在 `packages/subagents` 增加 SubAgentRunner 和 Delegation 边界。父 Runtime 通过受限 Executor 发起子 Run；Child Runtime 使用独立 State/Context，但共享只读的基础能力和 protocol Event correlation 标识。
 
 ## 新增模块
 
@@ -13,8 +13,8 @@
 
 ## 修改模块
 
-- Tool Registry：注册受限 delegation tools；
-- Permission：父级策略约束子级；
+- `packages/tools` Registry：注册受限 delegation tools；
+- agent-core Permission orchestration：父级策略约束子级；
 - ContextBuilder：构造隔离 child context；
 - Event/Trace：增加 parentRunId、agentId 和层级。
 

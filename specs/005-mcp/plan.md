@@ -2,7 +2,7 @@
 
 ## 架构修改
 
-增加 MCP Client Port 和 Adapter Layer。Client 只管理连接和协议，Adapter 把远端工具包装为内部 Tool；所有调用仍通过 Registry、Executor、Permission 和 Event Protocol。
+在 `packages/mcp` 增加 MCP Client Port 和 Adapter Layer。Client 只管理连接和协议，Adapter 把远端工具包装为 `packages/tools` 的内部 Tool；所有调用仍通过 Registry、Executor、agent-core Permission orchestration 和 protocol AgentEvent。
 
 ## 新增模块
 
@@ -13,10 +13,10 @@
 
 ## 修改模块
 
-- Registry 支持来源 metadata 和命名空间；
+- `packages/tools` Registry 支持来源 metadata 和命名空间；
 - Executor 支持远端超时/取消；
 - Permission Policy 识别 MCP 来源；
-- Observability 记录 server identity。
+- 后续 Production Trace 记录 server identity。
 
 ## 数据流
 

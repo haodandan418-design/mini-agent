@@ -1,160 +1,258 @@
-# Mini Agent Runtime 架构设计
+# Mini Agent Runtime 目标架构
 
-## 1. 总体架构
+## 1. 架构定位
+
+Mini Agent Runtime 是一个 Mini Agent Runtime / Agent Application Framework。当前文档描述最终目标架构，不代表所有模块现在同时实现。实际开发必须严格按照 `specs/` 中的 Phase 和 Task 增量交付。
+
+## 2. 目标目录结构
+
+```text
+mini-agent/
+├── apps/
+│   ├── web/                         # React 前端
+│   │   └── src/
+│   │       ├── components/
+│   │       ├── features/            # chat / sessions / tools / trace
+│   │       ├── hooks/
+│   │       ├── stores/
+│   │       ├── api/
+│   │       └── main.tsx
+│   └── server/                      # Node API + composition root
+│       └── src/
+│           ├── routes/
+│           ├── controllers/
+│           ├── services/
+│           └── index.ts
+├── packages/
+│   ├── agent-core/                  # Agent Runtime 核心
+│   │   └── src/
+│   │       ├── agent/               # agent.ts / agent-loop.ts / agent-state.ts
+│   │       ├── decision/            # decision.ts / normalizer.ts
+│   │       ├── context/             # context-builder.ts / message-manager.ts
+│   │       ├── events/              # agent-event.ts / event-emitter.ts
+│   │       ├── permissions/         # permission-policy.ts / permission-manager.ts
+│   │       └── index.ts
+│   ├── llm/                         # LLM Provider 抽象
+│   │   └── src/                     # provider.ts / types.ts / adapters
+│   ├── tools/                       # Tool System
+│   │   └── src/
+│   │       ├── registry/
+│   │       ├── executor/
+│   │       ├── builtin/             # read/list first; write/edit/search/bash later
+│   │       ├── types.ts
+│   │       └── index.ts
+│   ├── mcp/                         # MCP Client / Adapter / Discovery
+│   │   └── src/                     # client/ adapter/ discovery/ types.ts
+│   ├── skills/                      # SKILL.md Loader / Selector / Runtime
+│   │   └── src/                     # loader.ts / selector.ts / runtime.ts / types.ts
+│   ├── subagents/                   # Child Runtime / Delegation
+│   │   └── src/                     # runner.ts / manager.ts / types.ts
+│   ├── hooks/                       # Lifecycle Hook contracts and runner
+│   │   └── src/                     # hook-manager.ts / types.ts / builtin/
+│   ├── sessions/                    # Session / Run / Turn / Snapshot / Resume
+│   │   └── src/                     # session-manager.ts / snapshot.ts / persistence.ts / types.ts
+│   ├── protocol/                    # Message / Event / Tool Call / Error / Schema
+│   │   └── src/                     # messages.ts / events.ts / tool-calls.ts / errors.ts / schemas.ts
+│   └── shared/                      # IDs / Clock / Result / low-level utilities
+│       └── src/
+├── skills/                          # Project/user Skill files, not code package
+├── specs/                           # Phase specifications
+├── docs/                            # Product and architecture documents
+├── tests/                           # Cross-package integration/acceptance tests
+├── workspace/                       # Local fixture and execution boundary
+├── AGENTS.md
+├── README.md
+├── package.json
+├── pnpm-workspace.yaml
+└── tsconfig.json
+```
+
+这是目标结构，不要求当前阶段创建空目录或空模块。`Phase 0` 只建立包边界和工具链；具体包在对应 Phase 进入实现。
+
+## 3. 核心运行关系
 
 ```mermaid
 flowchart TD
-    U[User] --> F[React Frontend]
-    F -->|SSE / JSON| API[Node API]
-    API --> R[Agent Runtime]
-    R --> S[Agent State]
-    R --> C[Context Builder]
-    R --> L[LLM Provider]
-    R --> E[Event Emitter]
-    R --> X[Tool Executor]
-    X --> P[Permission Policy]
-    X --> LT[Local Tools]
-    X --> MT[MCP Tool Adapter]
-    X --> SA[SubAgent Runner]
-    LT --> FS[Workspace Filesystem]
-    R --> SS[Session Store]
-    E --> F
-    R -. future .-> SK[Skill Loader]
-    R -. future .-> O[Trace / Observability]
-    P -. future .-> SB[Sandbox]
+    User[User] --> Web[React Web]
+    Web -->|HTTP + SSE| API[Node API]
+    API --> Runtime[Agent Runtime]
+    Runtime --> Loop[Agent Loop]
+    Loop --> Provider[LLM Provider]
+    Provider --> Response[LLMResponse]
+    Response --> Normalizer[Decision Normalizer]
+    Normalizer --> Decision[AgentDecision]
+    Decision --> Registry[Tool Registry]
+    Registry --> Executor[Tool Executor]
+    Executor --> Local[Local Tools]
+    Executor --> MCP[MCP Tools]
+    Local --> Workspace[Workspace / Sandbox]
+    MCP --> Remote[MCP Server]
+    Executor --> Result[ToolResult]
+    Result --> Loop
+    Runtime --> Context[Context]
+    Runtime --> State[Agent State]
+    Runtime --> Events[AgentEvent]
+    Runtime --> Permission[Permission Orchestration]
+    Runtime --> Session[Session / Resume Port]
+    Runtime --> Retry[Retry Orchestration]
+    Events --> Emitter[Event Emitter]
+    Emitter --> Transport[SSE / WebSocket / CLI Adapter]
 ```
 
-核心关系是：Frontend 只负责交互和渲染，API 负责传输适配，Runtime 负责决策循环，Tool Executor 负责执行边界，Context Builder 负责把消息和工具结果变成下一次 LLM 输入。
+关键规则：LLM 负责决策，不负责执行；`LLMResponse` 必须先经过 `Decision Normalizer` 才能成为内部 `AgentDecision`；Agent Runtime 通过 `Tool Registry` 和 `Tool Executor` 执行工具；SSE 只传输 `AgentEvent`，不能定义或改变事件语义。
 
-## 2. 分层职责
+## 4. 模块职责
 
-### Frontend
+### `packages/agent-core`
 
-React 客户端提交用户输入，消费 SSE Agent Event，渲染文本、工具调用、工具结果、权限请求、错误和最终状态。它不执行工具、不决定权限，也不推断缺失事件。
+整个 Runtime 的核心，负责 Agent、Agent Loop、Agent State、`decision/` 中的 AgentDecision 与 Normalizer、Context、AgentEvent 发布、Cancellation，以及 Permission、Retry、Session、Hooks 的编排。`decision/normalizer.ts` 把 `LLMResponse` 转换为内部 `AgentDecision`；`events/` 负责发布事件；`permissions/` 负责 Phase 4 的策略编排。它不依赖 React、HTTP、SSE、具体 LLM SDK 或具体数据库。
 
-### Backend API
+具体 Permission Policy、Session Store、Retry Policy、Hook Runner 可以由其他包实现并通过端口注入；这不改变 Agent Core 负责 orchestration 的职责。
 
-Node.js HTTP 层负责会话入口、请求校验、SSE headers、断开检测和 Runtime 生命周期绑定。API 不包含 Agent 决策逻辑。
+### `packages/llm`
 
-### Agent Runtime
+负责 `LLMProvider`、Model Request/Response、OpenAI/Anthropic 等 Provider Adapter 和模型流式响应。Provider 只产生统一的 `LLMResponse` 或模型增量，绝不执行 Tool，也不拥有 Agent Decision Normalizer；Normalizer 属于 `agent-core/decision`。
 
-Runtime 持有一次 Run 的状态，执行“组装上下文 → 调用 LLM → 解析 Decision → 执行工具或结束 → 回填结果”的循环，并强制最大迭代、取消和错误收敛。
+### `packages/tools`
 
-### LLM Provider
+负责 Tool 类型、Tool Registry、Tool Executor、内置工具、超时、错误归一化、workspace 边界和后续 Sandbox Adapter。目标内置工具包括 `read-file`、`write-file`、`edit-file`、`list-files`、`search-files`、`bash`；Phase 2 只实现 `list-files`、`read-file`，其余按后续 Spec 增加。
 
-把内部 Message/ToolDefinition 映射到具体模型协议，再把文本、tool calls 和 finish reason 归一化为 `LLMResponse`。Provider 不执行工具、不改变 AgentState。
+### `packages/protocol`
 
-### Tool System
+系统公共协议层，定义 `Message`、`ToolCall`、`ToolResult`、canonical `AgentEvent`、`Error`、`Schema` 及稳定 ID 字段。`AgentDecision` 归属 agent-core/decision，不由 Provider 或 protocol 重复定义；`agent-core/events/agent-event.ts` 只做 Runtime 侧事件构造/导出，不复制协议定义。它不依赖 SSE、React、Node HTTP 或具体 Provider。
 
-Registry 保存可用工具及 schema；Executor 校验名称和输入、应用权限策略、执行工具、归一化结果并发出事件。工具自身只关注业务能力和 `ToolContext`。
+### `packages/mcp`
 
-### MCP
+负责 MCP Client、MCP Server connection、Tool discovery、Tool Adapter 和 MCP error handling。远端 MCP Tool 最终适配为内部 Tool，仍必须经过 Registry、Executor 和 Permission。
 
-MCP Client 连接外部 MCP Server，把远端工具发现结果转换为内部 ToolDefinition，把调用转换为 ToolResult。MCP Tool 与 Local Tool 在 Runtime 中共享 Tool 接口，但传输和故障边界独立。
+### `packages/skills`
 
-### Skill
+负责 `SKILL.md` loading、metadata、selection 和 context injection。Skill 是方法和上下文，不是 Tool，不能绕过 Tool Registry 或 Permission。
 
-Skill Loader 读取版本化 `SKILL.md` 元数据和指令；Skill Selector 根据任务选择有限 Skill，并作为 Context 的受控部分注入。Skill 不直接执行工具，也不能绕过权限。
+### `packages/subagents`
 
-### SubAgent
+负责子 Agent、独立 Context、预算、Tool 权限、Cancellation 和结果汇总。SubAgent 是独立 Agent Runtime，不等同于普通 Tool；父子执行通过显式 Delegation 边界关联。
 
-SubAgent Runner 创建隔离的子上下文和预算，复用受限 Runtime 能力，返回结构化结果。父 Agent 只能看到显式汇总结果，不共享可变消息数组。
+### `packages/hooks`
 
-### Session 与 Storage
+负责生命周期 Hook 类型、注册和执行约定：`SessionStart`、`BeforeModel`、`AfterModel`、`BeforeTool`、`AfterTool`、`SessionEnd`、`Error`。Hook 只能观察或执行被允许的扩展，不能绕过 Permission。
 
-Session 保存消息、工具历史、状态快照和事件游标。V1 可用进程内实现，但接口必须允许替换持久化实现；Resume 只能从一致快照恢复，不重复执行已确认的工具调用。
+### `packages/sessions`
 
-### Observability
+负责 Session、Run、Turn、Snapshot、Persistence、Resume 和 Event Cursor。它维护 `sessionId`、`runId`、`turnId`、`toolCallId`、`eventId` 的一致性，Resume 不能重复执行已完成 Tool Call。
 
-每次 Run 生成 trace/run/turn/tool-call 标识，记录状态变化、耗时、Provider 错误和工具结果摘要。敏感输入和完整文件内容默认不写入日志。
+### `packages/shared`
 
-## 3. Agent Loop
+只放跨包的低层无业务工具，例如 branded ID、Clock、Result、Abort/timeout 辅助和序列化基础能力。不能把 Agent Loop 或具体业务放进 shared。
+
+### `apps/server`
+
+Node API 和 composition root，负责 HTTP/SSE 路由、请求校验、依赖装配和 workspace 配置。它不实现 Agent Loop。
+
+### `apps/web`
+
+React UI，提交用户输入，消费 AgentEvent 并展示文本、Tool Call、Tool Result、Permission、SubAgent 和最终答案。它不执行 Tool、不做权限裁决。
+
+### 根目录资源
+
+`skills/` 保存项目/用户 Skill 文件；`workspace/` 是本地工具和 Sandbox 的默认边界；`tests/` 保存跨包集成与验收测试，不替代包内 Unit Test。
+
+## 5. 目标包内结构规则
+
+- `apps/web/src/features/` 按用户能力组织 UI，不把 Agent Loop 放入前端；
+- `apps/server/src/routes` 负责路由，`controllers` 负责请求/响应，`services` 负责组合调用，不复制 Runtime；
+- `agent-core` 的 `agent/decision/context/events/permissions` 是 Runtime 内部边界，优先使用简单模块，不创建额外 Manager/Factory 层；
+- `llm` 可以拥有 Provider Adapter，但 `normalizer.ts` 归属 `agent-core/decision`；
+- `protocol` 是唯一 canonical Event/Message/Tool 协议来源，SSE/WebSocket/CLI 不得重新定义；
+- `tools/builtin` 可以提前保留最终文件名，但未到对应 Phase 不得实现或注册高风险工具；
+- `skills/` 根目录保存实际 `SKILL.md`，`packages/skills` 只负责加载、选择和运行时注入。
+
+包内路径约定：`packages/mcp/src/{client,adapter,discovery,types.ts}`、`packages/skills/src/{loader.ts,selector.ts,runtime.ts,types.ts}`、`packages/subagents/src/{runner.ts,manager.ts,types.ts}`、`packages/hooks/src/{hook-manager.ts,types.ts,builtin/}`、`packages/sessions/src/{session-manager.ts,snapshot.ts,persistence.ts,types.ts}`、`packages/protocol/src/{messages.ts,events.ts,tool-calls.ts,errors.ts,schemas.ts}`、`packages/shared/src/`。
+
+## 6. 依赖关系
+
+```mermaid
+flowchart LR
+    shared[shared] --> protocol[protocol]
+    protocol --> llm[llm]
+    protocol --> tools[tools]
+    protocol --> hooks[hooks]
+    protocol --> sessions[sessions]
+    protocol --> mcp[mcp]
+    protocol --> skills[skills]
+    protocol --> subagents[subagents]
+    llm --> core[agent-core]
+    tools --> core
+    protocol --> core
+    shared --> core
+    tools --> mcp
+    core --> subagents
+    tools --> subagents
+    core --> server[apps/server]
+    llm --> server
+    tools --> server
+    mcp --> server
+    skills --> server
+    subagents --> server
+    hooks --> server
+    sessions --> server
+    protocol --> web[apps/web]
+```
+
+依赖含义是“使用端口/类型”，不是允许反向调用实现。`agent-core` 只依赖 `llm` 的 Provider/Normalizer 契约和 `tools` 的 Tool/Executor 契约，不依赖具体 SDK、数据库或 HTTP。`apps/server` 是组合根，负责注入具体实现，因此不会把基础设施耦合进 Core。
+
+## 7. Agent Loop 与 Decision 流程
 
 ```mermaid
 sequenceDiagram
-    participant User
     participant Runtime
     participant LLM
+    participant Normalizer
+    participant Registry
     participant Executor
     participant Tool
-    User->>Runtime: run(input)
-    loop until final/error/cancel/max iterations
-        Runtime->>Runtime: append user/context and emit state
-        Runtime->>LLM: chat(messages, tool definitions)
-        LLM-->>Runtime: text or tool calls
-        alt final text
-            Runtime-->>User: text_delta + message_end
-        else tool call
-            Runtime->>Executor: execute(call)
-            Executor->>Tool: validate and execute
-            Tool-->>Executor: ToolResult
-            Executor-->>Runtime: result + event
-            Runtime->>Runtime: append tool result to context
-        end
+    Runtime->>LLM: ModelRequest(messages, definitions)
+    LLM-->>Runtime: LLMResponse / stream chunks
+    Runtime->>Normalizer: normalize(LLMResponse)
+    Normalizer-->>Runtime: AgentDecision
+    alt final
+        Runtime-->>Runtime: emit run.completed
+    else tool_call
+        Runtime->>Registry: discover(tool names)
+        Runtime->>Executor: execute(ToolCall)
+        Executor->>Tool: validate + execute
+        Tool-->>Executor: ToolResult
+        Executor-->>Runtime: ToolResult
+        Runtime-->>Runtime: append result and continue Loop
     end
 ```
 
-结束条件按优先级为：取消、不可恢复错误、达到最大迭代次数、模型返回最终文本。若同一响应同时有文本和工具调用，V1 只接受协议规定的组合（文本作为可选思考展示，工具调用继续循环），最终回答必须以模型明确结束为准。
+结束条件包括 final decision、不可恢复错误、取消和迭代/预算耗尽。Permission、Retry、Session 和 Hooks 在这些边界上由 Runtime 编排，但具体存储/策略由注入端口提供。
 
-## 4. 状态机
+## 8. AgentEvent 与传输
 
-```mermaid
-stateDiagram-v2
-    [*] --> idle
-    idle --> thinking: run started
-    thinking --> tool_calling: tool calls returned
-    thinking --> completed: final text returned
-    tool_calling --> waiting_for_user: permission required
-    tool_calling --> thinking: tool result appended
-    waiting_for_user --> tool_calling: approved
-    waiting_for_user --> cancelled: rejected/expired
-    thinking --> failed: provider/runtime error
-    tool_calling --> failed: tool error policy
-    thinking --> cancelled: abort
-    tool_calling --> cancelled: abort
-    completed --> [*]
-    failed --> [*]
-    cancelled --> [*]
-```
-
-V1 只会实际使用 `idle/thinking/tool_calling/completed/failed/cancelled`；`waiting_for_user` 在 Phase 4 启用，保留状态是为了稳定事件和 Session 模型。
-
-## 5. 数据流与边界
-
-1. 用户输入进入 API 后创建 Run Context，不直接拼接到系统级指令。
-2. Context Builder 组合 system instruction、历史消息、工具结果、预算信息和可选 Skill。
-3. LLM 只返回 Decision；Runtime 负责验证 Decision，不能把模型输出当作执行权限。
-4. Executor 通过 Registry 查找工具、校验 schema 和 workspace 边界，再执行。
-5. Tool Result 必须包含成功/失败、可展示内容和机器可读元数据；随后以 `tool` Message 回填。
-6. Event Emitter 发布不可变事件；SSE 只做传输，不改变事件语义。
-
-## 6. 依赖方向
+`AgentEvent` 是 `packages/protocol` 的核心协议，由 Runtime 产生，经 Event Emitter 分发，再由 SSE、WebSocket 或 CLI Adapter 传输。至少包含：
 
 ```text
-domain types
-  ├── state/context
-  ├── llm port
-  ├── tool port
-  └── event protocol
-       └── agent runtime
-            ├── API/SSE adapter
-            ├── local tool adapters
-            ├── MCP adapter
-            ├── skill adapter
-            └── subagent adapter
+run.started
+message.delta
+message.completed
+tool.started
+tool.completed
+permission.requested
+error
+run.completed
+run.cancelled
 ```
 
-低层端口不依赖 HTTP、React 或具体 Provider。扩展能力依赖 Agent Core 和 Tool System，不能反向改变 Core 的基本语义。
+每个重要事件带 `eventId`、`runId`、`turnId`、`sequence`。SSE 可以使用 `id: eventId` 和 `Last-Event-ID` 重放，但不得把 `run.started` 改名为 SSE 私有事件或改变 payload 语义。
 
-## 7. 安全边界
+## 9. 安全与生命周期原则
 
-- Workspace root 是所有本地文件工具的硬边界，路径必须 canonicalize 后再检查；
-- V1 仅注册只读工具；写入、执行命令必须由 Permission Policy 显式放行；
-- LLM 产生的工具名和参数一律视为不可信输入；
-- Tool、MCP、SubAgent 都有独立超时和结果大小限制；
-- SSE 断线不等于 Run 成功或失败，状态由 Runtime/Session 决定；
-- 日志默认脱敏，不能把密钥、完整文件或用户隐私写入 Trace。
-
-## 8. 演进原则
-
-先完成稳定的 Core/Tool/Event 语义，再增加外部传输和执行来源。每个阶段必须保留向前兼容的事件 `version`、明确错误码和可替换端口，避免为未来能力预先引入复杂工厂层。
+- 所有外部输入（LLM、HTTP、MCP、Skill、用户）默认不可信；
+- Workspace 是本地文件工具的硬边界，路径必须 canonicalize 后检查；
+- 所有 Tool 都必须有 timeout、取消、错误归一化和结果大小限制；
+- Tool Registry 只负责发现，Tool Executor 负责执行边界；
+- Permission 是执行前裁决，Hook、Skill、MCP、SubAgent 都不能绕过；
+- Resume 以 Snapshot、Tool History 和 Event Cursor 为依据，已完成 Tool Call 不重复执行；
+- 不为未来可能需求提前创建额外 Manager、Factory 或基础设施包。

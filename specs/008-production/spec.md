@@ -6,11 +6,11 @@ Agent 从一次性演示走向可用 Runtime 后，需要面对断线恢复、�
 
 ## What
 
-实现 Session/Resume、受控 Retry、Hooks、Observability/Trace 和 Sandbox 接口，使一次 Run 可审计、可恢复、可限制执行。
+实现 `packages/sessions` 的 Session/Run/Turn/Resume、`packages/hooks` 的生命周期 Hooks、受控 Retry、Observability/Trace 和 Sandbox 接口，使一次 Run 可审计、可恢复、可限制执行。Retry/Resume/Hook 的生命周期由 `packages/agent-core` 编排。
 
 ## Scope
 
-- Session、Run、Message、Tool History 和 State Snapshot 存储；
+- Session、Run、Turn、Message、Tool History 和 State Snapshot 存储；
 - Resume 游标、幂等和未完成调用恢复策略；
 - 仅对 retryable 错误生效的退避 Retry；
 - before/after/error/cancel Hooks；
@@ -30,15 +30,16 @@ Agent 从一次性演示走向可用 Runtime 后，需要面对断线恢复、�
 2. Resume 能从最后一致点恢复，已完成 tool call 不重复执行；未确认副作用调用进入人工处理/失败态。
 3. Retry 只针对明确 retryable 错误，有限次数、指数退避并受总预算限制。
 4. Hooks 有明确时机、顺序、超时和失败策略，不能隐式改变核心状态。
-5. Trace 能关联 session/run/iteration/tool/subagent，日志默认脱敏。
+5. Trace 能关联 session/run/turn/iteration/tool/subagent，日志默认脱敏。
 6. Sandbox 能限制 cwd、环境变量、网络、CPU、内存、时间和文件访问；不可用时高风险工具拒绝执行。
+7. Session/Run/Turn/Tool Call/Event 的 `sessionId`、`runId`、`turnId`、`toolCallId`、`eventId` 全局唯一且在 Resume 后保持稳定。
 
 ## Technical Requirements
 
-- Store 使用版本号/乐观并发控制；
+- `packages/sessions` Store 使用版本号/乐观并发控制；
 - Resume 和 Event sequence 共享幂等语义；
 - Retry policy 与 Tool risk 解耦但禁止重试非幂等副作用；
-- Hook failure 默认 fail closed（可按 Spec 配置）；
+- `packages/hooks` Hook failure 默认 fail closed（可按 Spec 配置）；
 - Sandbox 是执行适配器，不由 LLM 决定策略。
 
 ## Acceptance Criteria

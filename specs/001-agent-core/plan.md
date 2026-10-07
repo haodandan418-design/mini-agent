@@ -2,34 +2,38 @@
 
 ## 架构修改
 
-建立 `domain`、`agent`、`llm` 和 `state` 四个最小模块。Agent Loop 只依赖 LLM Port、ContextBuilder 和状态操作，不依赖 HTTP 或具体模型 SDK。
+建立 `packages/protocol`、`packages/llm`、`packages/agent-core` 的最小可运行边界。Agent Core 只依赖 protocol 类型、LLM Port、Tool Port 的契约和编排 Port，不依赖任何具体 SDK、HTTP 或数据库。
 
 ## 新增模块
 
-- `Message`、`ToolCall`、`AgentState`、错误类型；
-- `LLMProvider` Port 及 Provider response normalizer；
-- `ContextBuilder`；
-- `AgentRunner` 和状态转换函数；
-- 内存 Run 状态实现与测试 Provider。
+- protocol：Message、ToolCall、ToolResult、AgentEvent、Error、branded IDs；
+- llm：LLMProvider、LLMResponse Port；
+- agent-core：AgentRunner、AgentState、ContextBuilder、`decision/decision.ts`、`decision/normalizer.ts`、状态转换、EventEmitter、orchestration ports；
+- 测试目录中的确定性 Provider/Normalizer test doubles。
 
 ## 修改模块
 
-Phase 1 前无业务模块；仅补充项目工具链入口和测试配置。
+Phase 1 前无业务模块。只准备 Phase 0 约定的 monorepo 包边界和测试入口。
 
 ## 数据流
 
 ```text
-input -> user Message -> ContextBuilder -> LLMProvider
-      -> stop -> final Message -> completed
-      -> tool call -> assistant Message -> next decision/boundary
+input
+  -> user Message
+  -> ContextBuilder
+  -> LLMProvider
+  -> LLMResponse
+  -> agent-core/decision/DecisionNormalizer
+  -> AgentDecision
+  -> final / recorded tool-call / error
 ```
 
-Tool Call 在本阶段记录为 Decision，不执行；Phase 2 将在同一 Loop 插入 Executor。
+本阶段 Tool Call 只记录为 Decision，不执行 Tool；Phase 2 才接入 Tool Registry/Executor。LLM stream 只保留 Port，传输展示在 Phase 3 实现。
 
 ## 状态变化
 
-`idle -> thinking -> completed/failed/cancelled`；存在 Tool Call 时 `thinking -> tool_calling` 的接口预留，但实际执行状态由 Phase 2 完成。iteration 在每次有效 Provider Decision 后递增。
+`idle -> thinking -> completed/failed/cancelled`。收到 tool-call decision 时记录 `tool_calling` 的状态语义和事件边界，但不进入真实执行；Phase 2 才完成 `tool_calling -> thinking` 的 Tool Result 回填。iteration 在每次有效模型 Decision 后递增。
 
 ## 设计理由
 
-先隔离 Loop 的生命周期和 Provider 协议，能在没有网络和真实模型的情况下确定测试行为；把 Tool Executor 延后可避免 Phase 1 同时解决安全和文件系统问题。
+先锁定 Normalizer 和 protocol，可以防止 OpenAI/Anthropic 响应格式泄漏到 Agent Loop；先实现可替换端口，后续 Tool、SSE、Session 和 Permission 可以增量接入，而无需重写 Core。

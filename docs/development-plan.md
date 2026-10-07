@@ -1,28 +1,36 @@
 # Mini Agent Runtime 开发计划
 
+## 0. 当前状态
+
+Phase 0 已完成：Monorepo 边界、根级 TypeScript、ESLint、Prettier、Node Test 入口和基础目录说明已建立。当前仍未实现任何 Agent 业务能力，下一阶段为 Phase 1，需用户单独确认后才能开始。
+
 ## 1. 交付策略
 
-采用由内到外的增量交付：先固定领域类型和 Agent Loop，再接入真实只读工具和事件传输，最后增加会改变安全和生命周期的能力。每个 Phase 有独立 Spec、Plan、Tasks、测试和人工验收，不跨阶段偷渡功能。
+目标目录结构是最终架构地图，不是一次性实现清单。按依赖从内到外交付：先建立公共协议和 Agent Loop，再接入只读 Tool，随后加入 Transport、Permission、MCP、Skills、SubAgents，最后处理 Session/Resume、Hooks、Retry、Observability 和 Sandbox。
+
+每个 Phase 都必须通过对应 `spec.md`、`plan.md`、`tasks.md` 的验收；不提前创建空壳模块或实现后续 Phase 能力。
 
 ## 2. Phase 总览
 
-| Phase | 名称 | 主要交付 | 前置依赖 | Gate |
-|---|---|---|---|---|
-| 0 | 初始化 | monorepo、TS、React/Node、lint/format/test、CI 约定 | 无 | 工具链可运行 |
-| 1 | Agent Core | Message、LLM Port、State、Context、Agent Loop | 0 | 完成真实 Loop |
-| 2 | Tool System | Tool、Registry、Executor、三类只读工具 | 1 | 工具结果回填并受边界约束 |
-| 3 | Streaming | Agent Event、SSE API、Streaming UI、重连语义 | 1、2 | 端到端实时展示 |
-| 4 | Permission | Policy、approve/reject、Human-in-the-loop | 2、3 | 写/执行默认不可绕过 |
-| 5 | MCP | Client、Server contract、Tool Adapter | 2、4 | 远端工具和错误边界可见 |
-| 6 | Skills | `SKILL.md`、Loader、Selector、上下文注入 | 1、2、5 | Skill 不绕过工具策略 |
-| 7 | SubAgents | Delegation、隔离 Context、汇总 | 1、2、3、4 | 父子生命周期可追踪 |
-| 8 | Production | Session/Resume、Retry、Hooks、Trace、Sandbox | 3、4、5、6、7 | 可恢复、可观测、受限执行 |
+| Phase | 负责包/应用                                         | 主要交付                                                                              | 前置依赖      | Gate                                              |
+| ----- | --------------------------------------------------- | ------------------------------------------------------------------------------------- | ------------- | ------------------------------------------------- |
+| 0     | 根工具链、包边界                                    | pnpm workspace、TS、apps/packages 边界、lint/format/test                              | 无            | 工具链可运行，零业务实现                          |
+| 1     | `protocol`、`llm`、`agent-core`                     | Agent Loop、LLM Port、`agent-core/decision/normalizer.ts`、State、Context、基础 Event | 0             | LLMResponse 能转为 AgentDecision 并完成 Core Loop |
+| 2     | `tools`                                             | `registry/`、`executor/`、`builtin/list-files`、`builtin/read-file`                   | 1             | 真实只读 Tool 受 workspace/timeout/error 边界保护 |
+| 3     | `agent-core`、`protocol`、`apps/server`、`apps/web` | Event Emitter、AgentEvent Adapter、SSE、React 事件消费、重连                          | 1、2          | 端到端展示统一事件                                |
+| 4     | `agent-core`、`tools`、server/web                   | Permission orchestration、approve/reject、Human-in-the-loop                           | 2、3          | 写/执行工具未批准不可产生副作用                   |
+| 5     | `mcp`                                               | MCP Client、Server connection、discovery、Tool Adapter                                | 2、4          | MCP Tool 复用内部 Tool/Permission 边界            |
+| 6     | `skills`、根目录 `skills/`                          | `SKILL.md` Loader、Selector、Context injection                                        | 1、2          | Skill 不扩大工具能力或权限                        |
+| 7     | `subagents`                                         | 独立 Child Runtime、预算、权限、取消、结果汇总                                        | 1、2、3、4    | 父子 Run 可隔离、可取消、可追踪                   |
+| 8     | `sessions`、`hooks`、`agent-core`、`tools`、server  | Session/Run/Turn、Snapshot/Resume、Retry、Hooks、Trace、Sandbox                       | 3、4、5、6、7 | 可恢复、幂等、可观测、fail-safe                   |
+
+`search-files` 属于 Tool System 的后续增强，不是 Phase 2 初始 Gate；`write-file`、`edit-file`、`bash` 必须在 Permission/Sandbox 之后增加。
 
 ## 3. 依赖图
 
 ```mermaid
 flowchart LR
-    P0[Phase 0 初始化] --> P1[Phase 1 Agent Core]
+    P0[Phase 0 工具链] --> P1[Phase 1 Core + Protocol + LLM]
     P1 --> P2[Phase 2 Tool System]
     P1 --> P3[Phase 3 Streaming]
     P2 --> P3
@@ -32,7 +40,6 @@ flowchart LR
     P4 --> P5
     P1 --> P6[Phase 6 Skills]
     P2 --> P6
-    P5 --> P6
     P1 --> P7[Phase 7 SubAgents]
     P2 --> P7
     P3 --> P7
@@ -44,54 +51,67 @@ flowchart LR
     P7 --> P8
 ```
 
-不存在反向依赖：Phase 5 不依赖 Phase 8；Phase 8 是聚合和强化阶段。
+没有反向依赖：Phase 5 不依赖 Phase 8，Phase 8 只是整合和强化已有端口。
 
-## 4. 阶段交付规则
+## 4. Phase 0 边界
+
+Phase 0 只建立：
+
+- `apps/web/src`、`apps/server/src`、`packages/*/src`、`tests/`、`workspace/` 的包边界约定；
+- `apps/web/src/features/{chat,sessions,tools,trace}` 与 `apps/server/src/{routes,controllers,services}` 的应用层职责约定；
+- `agent-core/src/{agent,decision,context,events,permissions}`、`tools/src/{registry,executor,builtin}` 的内部边界约定；
+- `package.json`、`pnpm-workspace.yaml`、`tsconfig.json`、lint/format/test/typecheck 命令；
+- `AGENTS.md` 和文档规则；
+- 空的目录规划可以写入文档，但不创建业务模块空壳。
+
+Phase 0 不实现 Agent、Provider、Tool、SSE 或 UI 业务。
+
+## 5. Phase 1 精确边界
+
+Phase 1 是第一次允许写业务代码的阶段，但只处理 Core Loop：
+
+必须实现：
+
+- `packages/protocol` 的 Message、ToolCall、ToolResult、AgentEvent 基础类型和唯一 ID 约定；
+- `packages/agent-core/src/decision/decision.ts` 的 AgentDecision 领域类型；
+- `packages/llm` 的 `LLMProvider`、`LLMResponse` Port；
+- `packages/agent-core/src/decision` 的 `Decision` 类型和 `DecisionNormalizer`；
+- `packages/agent-core` 的 Agent、AgentState、Context、Loop、Cancellation、最大迭代和错误收敛；
+- Runtime 对 Permission、Retry、Session、Hooks 的最小编排端口，不实现其生产级实现；
+- Core 级事件发布测试，不实现 SSE 或 React UI。
+
+明确不实现：
+
+- OpenAI/Anthropic 具体 SDK Adapter；
+- 真实 Tool Executor、文件工具、MCP、Skills、SubAgents；
+- SSE、WebSocket、Session Persistence、Resume、复杂 Retry、Hook Runner、Sandbox；
+- React 页面和 HTTP API。
+
+Phase 1 的输入是测试 Provider 返回的 `LLMResponse`，输出是经过 Normalizer 的 `AgentDecision` 和确定的 `AgentResult`。
+
+## 6. 各 Phase 交付规则
 
 每个阶段完成前必须：
 
-1. 阅读对应 `spec.md`、`plan.md` 和 `tasks.md`；
-2. 逐 Task 实现，单次只进行一个 Task；
-3. 通过 Unit、Integration、Acceptance 测试；
-4. 运行 typecheck、lint、format check；
-5. 更新必要文档和 Trace/错误码；
-6. 对照 Acceptance Criteria 做人工检查；
-7. 发现需求或架构问题时暂停并报告“问题/原因/影响/建议”。
+1. 完整阅读相关 Spec、Plan、Tasks 和现有代码；
+2. 一次只执行一个 Task；
+3. 运行 Unit、Integration、Acceptance（适用时）、typecheck、lint、format check；
+4. 验证行为、状态、错误和边界，而非只验证函数调用次数；
+5. 更新受影响的文档、错误码、事件或任务状态；
+6. 发现 Spec/架构/依赖冲突时暂停，报告问题、原因、影响和建议。
 
-## 5. Phase 0 退出标准
+## 7. 验收策略
 
-- 项目目录与包边界已确定；
-- Node/TypeScript/React 工具链可以安装、构建、测试；
-- lint、format、typecheck、test 命令有稳定入口；
-- 文档规则、提交规则和 SDD 工作流写入 `AGENTS.md`；
-- 不包含 Agent 业务实现。
+- Unit：包内纯逻辑和端口契约；
+- Integration：跨包组合和真实临时 workspace；
+- Acceptance：从用户输入到最终事件/结果的可观察链路；
+- 生产能力：额外使用故障注入、重启、重复请求和安全拒绝测试。
 
-## 6. Phase 1 重点计划
+## 8. 主要风险控制
 
-Phase 1 只实现可替换 Provider 驱动的 Agent Core。Loop 先用测试 Provider 验证停止、工具决策、异常、取消和迭代上限；不实现真实文件工具、不实现 SSE、不实现写入命令和 MCP。
-
-核心数据流：
-
-```text
-input
-  -> user Message
-  -> ContextBuilder
-  -> LLMProvider
-  -> LLMResponse
-  -> final OR ToolCall decision
-  -> state transition
-```
-
-Phase 1 的输出是 Tool System 可依赖的稳定端口，而不是可直接服务用户的完整产品。
-
-## 7. 验收方式
-
-验收以行为为中心：给定输入、Provider 决策和上下文，验证状态、消息、迭代计数、终止原因和错误事件。不能仅通过 mock 某个函数被调用来判定成功。
-
-## 8. 风险控制
-
-- 需求膨胀：新能力先进入后续 Spec，不修改当前 Phase 的验收范围；
-- LLM 不稳定：所有 Core 行为由确定性测试 Provider 覆盖，真实 Provider 仅做 Adapter 验证；
-- 安全绕过：V1 不注册写/执行工具，后续必须先有 Permission；
-- 上下文增长：在 Phase 1 记录预算字段，Phase 8 再实现压缩策略；
-- 事件兼容：从 Phase 3 起固定 version/eventId/sequence。
+- 目标架构过大：每个包只有在所属 Phase 才能实现；
+- Provider 协议泄漏：所有模型响应必须经过 Normalizer；
+- Tool 越权：唯一 Executor + Permission + Workspace guard；
+- 事件耦合 SSE：AgentEvent 位于 protocol，Transport 只编码；
+- Resume 重复副作用：Session 保存 Tool History/Cursor，未确认副作用 fail-safe；
+- 过度工程化：不提前添加额外 package、Manager、Factory 或基础设施。

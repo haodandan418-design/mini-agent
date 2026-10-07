@@ -2,7 +2,7 @@
 
 ## 架构修改
 
-在 ContextBuilder 之前增加 SkillCatalog/Loader/Selector。选中的 Skill 被转换为受标记的 system/context fragment，和消息一起传给 LLM；Tool Executor 不读取 Skill 指令作授权判断。
+在 `packages/skills` 增加 SkillCatalog/Loader/Selector。选中的 Skill 被转换为受标记的 system/context fragment，注入 `packages/agent-core` 的 ContextBuilder；Tool Executor 不读取 Skill 指令作授权判断。
 
 ## 新增模块
 
@@ -15,7 +15,7 @@
 
 - ContextBuilder：增加选中 Skill 的有限注入；
 - AgentContext：增加 skill policy/预算；
-- Trace/Event：记录 skill id/version/source；
+- protocol AgentEvent/后续 Trace：记录 skill id/version/source；
 - Tool/Permission 文档：明确 Skill 不能授权。
 
 ## 数据流

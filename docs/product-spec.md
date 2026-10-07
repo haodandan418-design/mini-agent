@@ -27,10 +27,9 @@ Mini Agent Runtime 是一个以 TypeScript/Node.js 实现、面向代码仓库�
 
 1. 理解任务并选择工具；
 2. 列出仓库文件；
-3. 搜索文件内容；
-4. 读取相关文件；
-5. 基于工具结果继续循环；
-6. 以流式事件展示过程并返回最终答案。
+3. 读取相关文件；
+4. 基于工具结果继续循环；
+5. 以流式事件展示过程并返回最终答案。
 
 ### 4.2 后续场景
 
@@ -59,7 +58,7 @@ V1 定义为 Phase 0–3 的交付：
 - TypeScript/Node.js Runtime 与最小 React 客户端骨架；
 - 可替换的 `LLMProvider`，支持真实 tool-call 响应和可测试的 Provider Adapter；
 - 有最大迭代次数、取消和错误收敛的 Agent Loop；
-- `list_files`、`read_file`、`search_files` 三个真实只读工具；
+- `list-files`、`read-file` 两个真实只读工具；
 - Tool Registry 与统一 Tool Executor；
 - `AgentState`、Message、Tool History 和 Context 组装；
 - SSE 上的统一 Agent Event Protocol；
@@ -72,6 +71,7 @@ V1 定义为 Phase 0–3 的交付：
 - 不包含生产级多租户、计费、用户系统、云端部署和高可用；
 - 不把 MCP、Skill、SubAgent、Resume、Sandbox 等后续能力伪装成 V1 能力；
 - 不承诺支持所有 LLM 厂商的私有协议；
+- 不在 Phase 2 初始 Gate 中实现 `search-files`；
 - 不追求通用工作流编排、RAG、向量数据库或长时间后台任务；
 - 不通过硬编码任务关键词或 fake response 绕过真实决策链。
 

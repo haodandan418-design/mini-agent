@@ -2,20 +2,20 @@
 
 ## 架构修改
 
-增加 SessionStore、EventStore、RetryPolicy、HookRunner、TraceSink 和 Sandbox Port。它们通过 Runtime 生命周期和 Executor 接入，不改变 Agent Loop 的基础 Decision 语义。
+增加 `packages/sessions` 的 SessionStore/EventStore、`packages/hooks` 的 HookRunner、agent-core 的 RetryPolicy orchestration、TraceSink 和 tools 的 Sandbox Port。它们通过 Runtime 生命周期和 Executor 接入，不改变 Agent Loop 的基础 Decision 语义。
 
 ## 新增模块
 
-- Session/Run snapshot repository；
+- Session/Run/Turn snapshot repository；
 - Resume coordinator 和 idempotency key；
 - Retry classifier/backoff；
-- Hook registry/runner；
+- `packages/hooks` registry/runner；
 - Trace/metrics/log sink 与 redaction；
 - Sandbox adapter 和 resource policy。
 
 ## 修改模块
 
-- Agent Runtime：持久化 checkpoint、恢复和生命周期 hooks；
+- Agent Runtime：编排持久化 checkpoint、恢复、Retry 和生命周期 hooks；
 - Tool Executor：执行 idempotency、retry 和 sandbox policy；
 - Event Buffer：持久事件游标和重放窗口；
 - API：resume、cancel、trace 查询边界。

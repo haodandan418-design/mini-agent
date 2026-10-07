@@ -2,7 +2,9 @@
 
 ## 当前阶段
 
-当前处于 SDD 初始化阶段。只有 `docs/`、`specs/`、`AGENTS.md` 等规划文档允许变更；在用户明确回复“开始 Phase 1”之前，不实现 Mini Agent 业务代码。
+Phase 0 已完成。当前等待 Phase 1 确认；在用户明确回复“开始 Phase 1”之前，不实现 Mini Agent 业务代码。若重新执行 Phase 0 类配置变更，仍只能修改 workspace、包边界、配置和工具链。
+
+Phase 0 不得创建 Agent、LLM、Tool、MCP、Skills、SubAgent、SSE 或 UI 业务实现；目标目录中的源码路径可以写入架构文档，但不能提前创建业务空壳。
 
 ## SDD 工作流
 
@@ -19,6 +21,7 @@
 ## 不可违反的约束
 
 - 没有已确认的 Spec 不写业务代码；
+- 没有用户明确确认，不进入下一个 Phase；
 - 不能把一个 Task 扩大为无关重构；
 - 不能修改测试来掩盖实现问题；
 - 不能删除已有功能；
