@@ -2,7 +2,7 @@
 
 ## 0. 当前状态
 
-Phase 0 已完成：Monorepo 边界、根级 TypeScript、ESLint、Prettier、Node Test 入口和基础目录说明已建立。当前仍未实现任何 Agent 业务能力，下一阶段为 Phase 1，需用户单独确认后才能开始。
+Phase 0 已完成，Phase 1 已开始：Monorepo 边界、根级 TypeScript、ESLint、Prettier、Node Test 入口和基础目录说明已建立，`CORE-001` 已完成。当前只实现了公共 protocol 基础类型、branded ID 和运行时校验，Agent Loop、LLM Provider、Decision Normalizer 和 Tool 仍未实现；下一项为 `CORE-002`。
 
 ## 1. 交付策略
 

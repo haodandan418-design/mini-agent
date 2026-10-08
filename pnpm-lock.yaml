@@ -42,7 +42,11 @@ importers:
 
   packages/mcp: {}
 
-  packages/protocol: {}
+  packages/protocol:
+    dependencies:
+      '@mini-agent/shared':
+        specifier: workspace:*
+        version: link:../shared
 
   packages/sessions: {}
 

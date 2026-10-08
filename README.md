@@ -4,9 +4,9 @@
 
 ## 当前状态
 
-Phase 0：项目工具链与 Monorepo 边界初始化。
+Phase 1：已完成 protocol 基础类型、branded ID 和运行时校验（`CORE-001`）。
 
-当前尚未实现 Agent、LLM、Tool、MCP、Skills、SubAgent、SSE 或 UI 业务能力。
+当前尚未实现 Agent Loop、LLM Provider、Tool、MCP、Skills、SubAgent、SSE 或 UI 业务能力。
 
 ## 目录
 

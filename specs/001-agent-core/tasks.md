@@ -1,9 +1,9 @@
 # 001 Agent Core Tasks
 
-- [ ] **CORE-001 定义 protocol 基础类型与 ID**
+- [x] **CORE-001 定义 protocol 基础类型与 ID**
   - 输入：技术设计中的 Message、ToolCall、ToolResult、AgentEvent 和 ID 约定。
   - 输出：可序列化的公共类型、错误模型和校验边界。
-  - 验收：缺失 session/run/turn/tool/event ID 或非法 Decision 能被拒绝。
+  - 验收：缺失 session/run/turn/tool/event ID 或非法 Message/ToolCall/ToolResult/AgentEvent 能被拒绝；AgentDecision 校验留给 CORE-003。
 
 - [ ] **CORE-002 定义 LLM Provider Port**
   - 输入：ModelRequest、LLMResponse、LLMStreamChunk 约定。
